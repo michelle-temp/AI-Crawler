@@ -86,4 +86,4 @@ npm run deploy   # wrangler deploy — publishes to the route + vars/bindings in
 
 **Analytics never blocks or breaks anything.** Events fan out to every configured `AnalyticsSink` via `ctx.waitUntil()` *after* the response is returned — zero added latency. Each sink swallows its own failures (`Promise.allSettled`, so one broken sink can't starve another);
 
-**Unknown path → origin, not 404.** If a crawler requests a page we have no Markdown for, it gets the original page. Coverage gaps degrade gracefully.
+**Unknown path → origin, not 404.** If a crawler requests a page we have no Markdown for, it gets the original page.
