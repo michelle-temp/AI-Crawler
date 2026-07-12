@@ -22,7 +22,7 @@ flowchart TD
     CACHE -- HIT --> HIT["Serve cached AI response<br/>x-ai-cache: HIT"]
     CACHE -- MISS --> VERIFY{"Origin verification:<br/>Send GET to origin and validate endpoint exists"}
 
-    VERIFY -- "no (404/5xx)" --> RELAY["Dead page - Relay the real origin response —<br/>"]
+    VERIFY -- "no (404/5xx)" --> RELAY["Dead page - Relay the real origin response<br/>"]
     VERIFY -- yes --> MISS["Serve Markdown variant<br/>x-ai-cache: MISS"] --> STORE[["cache.put via ctx.waitUntil<br/>TTL 300s"]]
 
     TXT & PASS & HIT & RELAY & MISS --> FAN[["dispatchEvent via ctx.waitUntil<br/>every request is logged"]]

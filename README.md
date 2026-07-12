@@ -61,9 +61,9 @@ npm run dev   # wrangler dev, http://localhost:8787
 In another terminal:
 
 ```bash
-curl -H 'User-Agent: GPTBot/1.2' http://localhost:8787/products   # AI-ready markdown
-curl http://localhost:8787/products                                # human traffic, origin passthrough
-curl http://localhost:8787/llms.txt                                # static llms.txt, served to everyone
+curl -H 'User-Agent: GPTBot' http://localhost:8787/products   # AI-ready markdown
+curl http://localhost:8787/products                           # human traffic, origin passthrough
+curl http://localhost:8787/llms.txt                           # static llms.txt, served to everyone
 ```
 
 Look for the `x-ai-cache: MISS` header on the first crawler request and `x-ai-cache: HIT` on the second — confirms the edge cache path.
