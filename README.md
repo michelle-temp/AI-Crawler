@@ -21,20 +21,6 @@ src/cache.ts       edge cache for AI variants (per-crawler keys, HIT/MISS)
 src/analytics.ts   event schema, pluggable sinks (webhook, Queue)
 ```
 
-## Design decisions
-
-**Failures are transparet to the "end" user.** The Worker sits on the release path of a live site, so its prime directive is *do no harm*. Any unexpected error in the handler falls back to a transparent `fetch(request)` to the origin. A bug in crawler detection or content rendering can never take the site down — worst case, a crawler sees the normal HTML page.
-
-**Human traffic is a pure pass-through.** Non-crawler and non-GET requests (checkout POSTs, etc.) hit `fetch(request)` directly, the response remains as originaly expected.
-
-**Verify before answering.** An AI variant is only served after a quick origin check (GET with a browser User-Agent, body discarded) confirms the page actually exists — the Worker never invents content for a URL that would 404; the crawler gets the origin's real answer instead. The check is paid at most once per crawler + path per cache TTL.
-
-**Edge cache, keyed by crawler name.** Verified AI responses are cached in `caches.default` under a synthetic `/__ai-cache/<crawler>/<path>` key (query string preserved) for 300s, so repeat crawler hits cost zero origin traffic. Responses carry `x-ai-cache: HIT|MISS`, and cache failures degrade to fresh verification + generation — never to an error. See [ARCHITECTURE.md](ARCHITECTURE.md).
-
-**Analytics never blocks or breaks anything.** Events fan out to every configured `AnalyticsSink` via `ctx.waitUntil()` *after* the response is returned — zero added latency. Each sink swallows its own failures (`Promise.allSettled`, so one broken sink can't starve another);
-
-**Unknown path → origin, not 404.** If a crawler requests a page we have no Markdown for, it gets the original page. Coverage gaps degrade gracefully.
-
 ## Quick Start
 
 ### Prerequisites
@@ -87,3 +73,17 @@ Look for the `x-ai-cache: MISS` header on the first crawler request and `x-ai-ca
 ```bash
 npm run deploy   # wrangler deploy — publishes to the route + vars/bindings in wrangler.toml
 ```
+
+## Design decisions
+
+**Failures are transparet to the "end" user.** The Worker sits on the release path of a live site, so its prime directive is *do no harm*. Any unexpected error in the handler falls back to a transparent `fetch(request)` to the origin. A bug in crawler detection or content rendering can never take the site down — worst case, a crawler sees the normal HTML page.
+
+**Human traffic is a pure pass-through.** Non-crawler and non-GET requests (checkout POSTs, etc.) hit `fetch(request)` directly, the response remains as originaly expected.
+
+**Verify before answering.** An AI variant is only served after a quick origin check (GET with a browser User-Agent, body discarded) confirms the page actually exists — the Worker never invents content for a URL that would 404; the crawler gets the origin's real answer instead. The check is paid at most once per crawler + path per cache TTL.
+
+**Edge cache, keyed by crawler name.** Verified AI responses are cached in `caches.default` under a synthetic `/__ai-cache/<crawler>/<path>` key (query string preserved) for 300s, so repeat crawler hits cost zero origin traffic. Responses carry `x-ai-cache: HIT|MISS`, and cache failures degrade to fresh verification + generation — never to an error. See [ARCHITECTURE.md](ARCHITECTURE.md).
+
+**Analytics never blocks or breaks anything.** Events fan out to every configured `AnalyticsSink` via `ctx.waitUntil()` *after* the response is returned — zero added latency. Each sink swallows its own failures (`Promise.allSettled`, so one broken sink can't starve another);
+
+**Unknown path → origin, not 404.** If a crawler requests a page we have no Markdown for, it gets the original page. Coverage gaps degrade gracefully.
