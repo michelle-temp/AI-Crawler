@@ -9,20 +9,20 @@ pluggable analytics sinks — while human traffic streams through untouched.
 
 ```mermaid
 flowchart TD
-    R(["Incoming request"]) --> LLMS{"path is /llms.txt?"}
+    R(["New Incoming request"]) --> LLMS{"path is /llms.txt?"}
     LLMS -- yes --> TXT["Serve static llms.txt<br/>to everyone"]
-    LLMS -- no --> DET{"Known AI crawler<br/>and GET?"}
+    LLMS -- no --> DET{"AI Crawler detected?"}
 
-    DET -- "no (human / non-GET)" --> PASS["Passthrough to origin<br/>streamed, untouched"]
+    DET -- "no (human / non-GET request)" --> PASS["Passthrough to origin<br/>"]
     DET -- yes --> VAR{"Markdown variant<br/>exists for path?"}
 
     VAR -- no --> PASS
-    VAR -- yes --> CACHE{"Edge cache hit?<br/>key: crawler + path + query"}
+    VAR -- yes --> CACHE{"Cache hit?<br/>key: crawler + path + query"}
 
     CACHE -- HIT --> HIT["Serve cached AI response<br/>x-ai-cache: HIT"]
-    CACHE -- MISS --> VERIFY{"Origin verification:<br/>GET with browser User-Agent — 2xx?"}
+    CACHE -- MISS --> VERIFY{"Origin verification:<br/>Send GET to origin and validate endpoint exists"}
 
-    VERIFY -- "no (404/5xx)" --> RELAY["Relay the real origin response —<br/>never invent content for a dead page"]
+    VERIFY -- "no (404/5xx)" --> RELAY["Dead page - Relay the real origin response —<br/>"]
     VERIFY -- yes --> MISS["Serve Markdown variant<br/>x-ai-cache: MISS"] --> STORE[["cache.put via ctx.waitUntil<br/>TTL 300s"]]
 
     TXT & PASS & HIT & RELAY & MISS --> FAN[["dispatchEvent via ctx.waitUntil<br/>every request is logged"]]
