@@ -8,7 +8,8 @@ Cloudflare Worker in front of `www.aisearchadvertising.com` that:
 
 ## Demo
 Local server demo preview:
-https://github.com/user-attachments/assets/942d8b22-4703-4f67-a16f-46e9ab4c9c26
+https://github.com/user-attachments/assets/a2a9be88-4e18-42d2-b926-809b374d04e9
+
 ## Architecture
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full request-flow and module diagrams (Mermaid).
