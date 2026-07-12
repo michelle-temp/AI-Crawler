@@ -8,8 +8,7 @@ pluggable analytics sinks — while human traffic streams through untouched.
 Caching is handled by **Workers Cache** (`[cache] enabled = true` in
 [wrangler.toml](wrangler.toml)): a cache that sits *in front of* the Worker.
 Fresh hits are answered before the Worker runs, and cacheability is driven
-entirely by the `Cache-Control` / `Vary` headers on responses — see
-[Workers Cache](#workers-cache) below.
+entirely by the `Cache-Control` / `Vary` headers on responses.
 
 ## Request flow
 
