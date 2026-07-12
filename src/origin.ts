@@ -10,13 +10,17 @@ export async function passthrough(request: Request, env: Env): Promise<Response>
 }
 
 function originRequest(request: Request, env: Env): Request {
-  if (!env.ORIGIN_URL) return request;
-
-  const origin = new URL(env.ORIGIN_URL); // explicit origin override for local development
   const url = new URL(request.url);
-  url.hostname = origin.hostname;
-  url.protocol = origin.protocol;
-  url.port = origin.port;
+  url.protocol = 'https:';
+
+  if (env.ORIGIN_URL) {
+    const origin = new URL(env.ORIGIN_URL); // explicit origin override for local development
+    url.hostname = origin.hostname;
+    url.protocol = origin.protocol;
+    url.port = origin.port;
+  }
+
+  if (url.toString() === request.url) return request;
   return new Request(url.toString(), request);
 }
 
