@@ -1,0 +1,32 @@
+# Deployed under the original worker's name so it keeps the zone route
+name = "ai-ready-worker"
+main = "src/index.ts"
+compatibility_date = "2026-07-12"
+workers_dev = false
+preview_urls = false
+
+routes = [
+  { pattern = "www.aisearchadvertising.com/*", zone_name = "aisearchadvertising.com" }
+]
+
+[vars]
+# Analytics sink: every request event is POSTed here.
+ANALYTICS_WEBHOOK_URL = "https://webhook.site/fcbdfe34-1091-43ef-94c1-3b33f471d41b"
+
+# Optional (dev only): ORIGIN_URL to point passthrough at a staging origin.
+
+[[kv_namespaces]]
+binding = "KNOWN_CRAWLERS_KV"
+id = "249763a3742a4810be8eca83abeefe44"
+
+[[queues.producers]]
+binding = "ANALYTICS_QUEUE"
+queue = "ai-ready-analytics"
+
+[[queues.consumers]]
+queue = "ai-ready-analytics"
+max_batch_size = 100
+max_batch_timeout = 5
+
+[observability]
+enabled = true
