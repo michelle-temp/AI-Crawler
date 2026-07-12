@@ -7,7 +7,6 @@ Cloudflare Worker in front of `www.aisearchadvertising.com` that:
 3. **Logs request events** to pluggable analytics sinks (HTTP webhook + optional Cloudflare Queue)
 
 ## Demo
-https://github.com/user-attachments/assets/8e8cf370-da4c-4f2c-8c3a-349864ec87fe
 
 ## Architecture
 
