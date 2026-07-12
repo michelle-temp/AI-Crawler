@@ -11,7 +11,7 @@ routes = [
 
 [vars]
 # Analytics sink: every request event is POSTed here.
-ANALYTICS_WEBHOOK_URL = "https://webhook.site/fcbdfe34-1091-43ef-94c1-3b33f471d41b"
+ANALYTICS_WEBHOOK_URL = "https://webhook.site/1354ce4a-fec9-41d0-96d0-3758059c2049"
 
 # Optional (dev only): ORIGIN_URL to point passthrough at a staging origin.
 
