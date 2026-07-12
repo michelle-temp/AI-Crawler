@@ -1,4 +1,4 @@
-# ai-crawler-worker
+# AI Crawler Worker
 
 Cloudflare Worker in front of `www.aisearchadvertising.com` that:
 
