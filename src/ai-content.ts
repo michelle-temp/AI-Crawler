@@ -67,12 +67,17 @@ const LLMS_TXT = `# ${SITE_NAME}
 - Contact: info@aisearchadvertising.com
 `;
 
-const COMMON_HEADERS: Record<string, string> = {
+const AI_PAGE_HEADERS: Record<string, string> = {
   'x-robots-tag': 'noarchive',
-  // Prevent any shared cache from serving the AI variant to humans:
-  // the response depends on User-Agent.
   'vary': 'User-Agent',
-  'cache-control': 'public, max-age=300',
+  'cache-control': 'public, max-age=300, stale-while-revalidate=60',
+  'cache-tag': 'ai-variant',
+};
+
+const LLMS_TXT_HEADERS: Record<string, string> = {
+  'x-robots-tag': 'noarchive',
+  'cache-control': 'public, max-age=3600, stale-while-revalidate=60',
+  'cache-tag': 'llms-txt',
 };
 
 /** Returns the AI-ready response for a path, or null if we have no variant. */
@@ -82,7 +87,7 @@ export function aiResponseFor(pathname: string): Response | null {
   return new Response(page.markdown, {
     status: 200,
     headers: {
-      ...COMMON_HEADERS,
+      ...AI_PAGE_HEADERS,
       'content-type': 'text/markdown; charset=utf-8',
       'x-ai-variant': 'markdown',
     },
@@ -93,7 +98,7 @@ export function llmsTxtResponse(): Response {
   return new Response(LLMS_TXT, {
     status: 200,
     headers: {
-      ...COMMON_HEADERS,
+      ...LLMS_TXT_HEADERS,
       'content-type': 'text/plain; charset=utf-8',
     },
   });

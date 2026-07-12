@@ -3,7 +3,7 @@
 Cloudflare Worker in front of `www.aisearchadvertising.com` that:
 
 1. **Detects known AI crawlers** via a User-Agent registry (static list, extensible at runtime via KV)
-2. **Serves AI-ready Markdown** to those crawlers (plus a public `/llms.txt`), origin-verified and edge-cached
+2. **Serves AI-ready Markdown** to those crawlers (plus a public `/llms.txt`), origin-verified and edge-cached (via Workers Cache, in front of the Worker)
 3. **Logs request events** to pluggable analytics sinks (HTTP webhook + optional Cloudflare Queue)
 
 ## Local server Demo
@@ -20,7 +20,6 @@ src/index.ts       routing + fail-open error handling + queue consumer
 src/crawlers.ts    crawler registry + detection
 src/ai-content.ts  markdown variants + llms.txt (mocked content store)
 src/origin.ts      origin passthrough + page-existence verification
-src/cache.ts       edge cache for AI variants (per-crawler keys, HIT/MISS)
 src/analytics.ts   event schema, pluggable sinks (webhook, Queue)
 ```
 
@@ -69,7 +68,7 @@ curl http://localhost:8787/products                           # human traffic, o
 curl http://localhost:8787/llms.txt                           # static llms.txt, served to everyone
 ```
 
-Look for the `x-ai-cache: MISS` header on the first crawler request and `x-ai-cache: HIT` on the second — confirms the edge cache path.
+Look for the `Cache-Control: public, max-age=300, stale-while-revalidate=60` and `Vary: User-Agent` headers on the crawler request — those are what instruct Workers Cache. (`wrangler dev` does not simulate the front cache, so locally every request invokes the Worker; once deployed, `Cf-Cache-Status` shows `MISS` on the first crawler request and `HIT` on the second.)
 
 ### 5. Deploy
 
@@ -81,12 +80,12 @@ npm run deploy   # wrangler deploy — publishes to the route + vars/bindings in
 
 **Failures are transparet to the "end" user.** The Worker sits on the release path of a live site, so its prime directive is *do no harm*. Any unexpected error in the handler falls back to a transparent `fetch(request)` to the origin. A bug in crawler detection or content rendering can never take the site down — worst case, a crawler sees the normal HTML page.
 
-**Human traffic is a pure pass-through.** Non-crawler and non-GET requests (checkout POSTs, etc.) hit `fetch(request)` directly, the response remains as originaly expected.
+**Human traffic is a pure pass-through.** Non-crawler and non-GET requests (checkout POSTs, etc.) hit `fetch(request)` directly, the response remains as originaly expected. New with Workers Cache: `Vary: User-Agent` is appended to the response, so a cacheable origin page stored by the front cache (or any shared cache) can never be handed to a crawler, silently bypassing the AI variant.
 
 **Verify before answering.** An AI variant is only served after a quick origin check (GET with a browser User-Agent, body discarded) confirms the page actually exists — the Worker never invents content for a URL that would 404; the crawler gets the origin's real answer instead. The check is paid at most once per crawler + path per cache TTL.
 
-**Edge cache, keyed by crawler name.** Verified AI responses are cached in `caches.default` under a synthetic `/__ai-cache/<crawler>/<path>` key (query string preserved) for 300s, so repeat crawler hits cost zero origin traffic. Responses carry `x-ai-cache: HIT|MISS`, and cache failures degrade to fresh verification + generation — never to an error. See [ARCHITECTURE.md](ARCHITECTURE.md).
+**Workers Cache in front of the Worker — configured entirely with HTTP headers.** `[cache] enabled = true` in [wrangler.toml](wrangler.toml) puts Cloudflare's cache *before* the Worker: fresh hits are answered without invoking it (zero CPU billed), concurrent requests for the same key collapse into a single invocation, and Cloudflare honors the response's own `Cache-Control` per RFC 9111 — there is no cache code in this project. AI variants declare `public, max-age=300, stale-while-revalidate=60` + `Vary: User-Agent` (one cached variant per crawler UA, and Markdown can never be served to a browser); `/llms.txt` declares `max-age=3600` with no `Vary`, so one entry serves everyone. Cache keys include the Worker version, so a deploy invalidates cleanly, and responses carry `Cache-Tag` headers (`ai-variant`, `llms-txt`) for targeted purges via `ctx.cache.purge({ tags })`. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-**Analytics never blocks or breaks anything.** Events fan out to every configured `AnalyticsSink` via `ctx.waitUntil()` *after* the response is returned — zero added latency. Each sink swallows its own failures (`Promise.allSettled`, so one broken sink can't starve another);
+**Analytics never blocks or breaks anything.** Events fan out to every configured `AnalyticsSink` via `ctx.waitUntil()` *after* the response is returned — zero added latency. Each sink swallows its own failures (`Promise.allSettled`, so one broken sink can't starve another); Note on Workers Cache: front-cache hits never invoke the Worker, so they don't appear in these sinks — hit ratios live in the Workers Observability dashboard, and clients see `Cf-Cache-Status`.
 
 **Unknown path → origin, not 404.** If a crawler requests a page we have no Markdown for, it gets the original page.

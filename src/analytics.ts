@@ -9,7 +9,15 @@
  */
 
 import type { Crawler } from './crawlers';
-import type { CacheStatus } from './cache';
+
+/**
+ * Cache outcome as seen from inside the Worker. Workers Cache sits in front
+ * of the Worker, so a front-cache HIT never reaches this code — the request
+ * is answered without an invocation What the Worker can observe:
+ *  - MISS:   it generated a cacheable response (AI variant, llms.txt).
+ *  - BYPASS: passthrough — cacheability is whatever the origin declared.
+ */
+export type CacheStatus = 'MISS' | 'BYPASS';
 
 export interface Env {
   ANALYTICS_WEBHOOK_URL?: string;

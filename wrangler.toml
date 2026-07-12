@@ -9,6 +9,9 @@ routes = [
   { pattern = "www.aisearchadvertising.com/*", zone_name = "aisearchadvertising.com" }
 ]
 
+[cache]
+enabled = true
+
 [vars]
 # Analytics sink: every request event is POSTed here.
 ANALYTICS_WEBHOOK_URL = "https://webhook.site/1354ce4a-fec9-41d0-96d0-3758059c2049"

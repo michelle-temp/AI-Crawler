@@ -4,27 +4,34 @@
  * Responsibilities:
  *  1. Detect known AI crawlers (User-Agent registry).
  *  2. Serve an AI-ready Markdown variant to those crawlers (+ /llms.txt for
- *     all), verified against the origin and cached at the edge.
+ *     all), verified against the origin.
  *  3. Log request events to pluggable analytics sinks (webhook, Queue).
+ *
+ * Caching: Workers Cache (wrangler.toml [cache]) sits IN FRONT of this
+ * Worker. Fresh hits are answered before the Worker runs — this code only
+ * ever sees misses — and cacheability is driven entirely by the
+ * Cache-Control / Vary headers on the responses it returns (ai-content.ts
+ * for generated content; origin.ts appends Vary: User-Agent to passthrough).
  *
  * Design invariants (see README for reference):
  *  - FAIL OPEN: any unexpected error → pass the request through to the
  *    origin untouched.
  *  - Analytics is fire-and-forget via ctx.waitUntil(); it adds zero latency
  *    to the response and its failures are invisible to visitors.
- *  - Human traffic is a pure pass-through (fetch to origin).
+ *  - Human traffic passes through untouched, except that Vary: User-Agent is
+ *    appended so no shared cache can serve one audience the other's content.
  *  - Never answer for a page the origin doesn't have: an AI variant is only
- *    served after the origin confirms the page exists (then cached, so the
- *    check is paid at most once per crawler+path per TTL).
+ *    served after the origin confirms the page exists (then cached in front
+ *    of the Worker, so the check is paid once per crawler UA per TTL).
  */
 
-import { detectCrawler, loadCrawlers, type Crawler } from './crawlers';
+import { detectCrawler, loadCrawlers } from './crawlers';
 import { aiResponseFor, llmsTxtResponse } from './ai-content';
 import { passthrough, fetchOriginForVerification } from './origin';
-import { getCachedAiResponse, storeAiResponse, type CacheStatus } from './cache';
 import {
   buildEvent,
   dispatchEvent,
+  type CacheStatus,
   type Env,
   type RequestEvent,
 } from './analytics';
@@ -72,10 +79,11 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
 
   let served: Served;
   if (url.pathname === '/llms.txt') {
-    // Served to everyone — it's a public discovery file, like robots.txt.
-    served = { response: llmsTxtResponse(), variant: 'llms-txt', cacheStatus: 'BYPASS' };
+    // Public discovery file, like robots.txt. No Vary — one front-cache
+    // entry serves everyone for an hour.
+    served = { response: llmsTxtResponse(), variant: 'llms-txt', cacheStatus: 'MISS' };
   } else if (crawler && request.method === 'GET') {
-    served = await serveAiVariant(request, env, ctx, crawler);
+    served = await serveAiVariant(request, env, ctx);
   } else {
     // Humans, and any non-GET method (POST checkout etc.).
     served = {
@@ -96,19 +104,18 @@ async function handle(request: Request, env: Env, ctx: ExecutionContext): Promis
 }
 
 /**
- * AI crawler on a GET. Order of operations:
+ * AI crawler on a GET — by definition a front-cache miss (fresh hits are
+ * answered by Workers Cache before the Worker runs). Order of operations:
  *  1. No Markdown variant for this path → origin untouched (never 404 an
  *     existing page).
- *  2. Edge cache hit → serve it; the origin was verified when the entry was
- *     stored, so staleness is bounded by the cache TTL (300s).
- *  3. Miss → confirm the origin actually has this page, then serve the
- *     variant and cache it.
+ *  2. Confirm the origin actually has this page, then serve the variant.
+ *     Workers Cache stores it (max-age=300, one variant per User-Agent), so
+ *     the verification round trip is paid once per crawler UA per TTL.
  */
 async function serveAiVariant(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
-  crawler: Crawler,
 ): Promise<Served> {
   const aiResponse = aiResponseFor(new URL(request.url).pathname);
   if (!aiResponse) {
@@ -119,11 +126,6 @@ async function serveAiVariant(
     };
   }
 
-  const cached = await getCachedAiResponse(request, crawler.name);
-  if (cached) {
-    return { response: cached, variant: 'ai', cacheStatus: 'HIT' };
-  }
-
   const originResponse = await fetchOriginForVerification(request, env);
   if (!originResponse.ok) {
     return { response: originResponse, variant: 'origin', cacheStatus: 'BYPASS' };
@@ -132,9 +134,5 @@ async function serveAiVariant(
   // The verification body is unused; cancel it so the connection is released.
   ctx.waitUntil(originResponse.body?.cancel() ?? Promise.resolve());
 
-  return {
-    response: storeAiResponse(request, crawler.name, aiResponse, ctx),
-    variant: 'ai',
-    cacheStatus: 'MISS',
-  };
+  return { response: aiResponse, variant: 'ai', cacheStatus: 'MISS' };
 }
